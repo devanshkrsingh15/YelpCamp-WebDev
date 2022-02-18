@@ -5,7 +5,8 @@ const methodOverride = require("method-override");
 const Campground = require("./models/campground");
 const catchAsync = require("./utils/catchAsync");
 const ExpressError = require("./utils/ExpressError");
-const { campgroundSchema } = require('./schema.js');
+const { campgroundSchema , reviewSchema } = require('./schema.js');
+const Review = require('./models/review')
 const ejsMate = require("ejs-mate");
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(methodOverride("_method"));
 
+//middleware for campgrounds
 const validateCampground = (req, res, next) => {
   const { error } = campgroundSchema.validate(req.body);
   if (error) {
@@ -36,6 +38,19 @@ const validateCampground = (req, res, next) => {
     next();
   }
 };
+
+//middleware for reviews
+const validateReview = (req, res, next) => {
+  const { error } = reviewSchema.validate(req.body);
+  if (error) {
+      const msg = error.details.map(el => el.message).join(',')
+      throw new ExpressError(msg, 400)
+  } else {
+      next();
+  }
+}
+
+
 
 app.get("/", (req, res) => {
 res.render("home");
@@ -67,13 +82,10 @@ app.post(
 );
 
 //reading one
-app.get(
-  "/campgrounds/:id",
-  catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
-    res.render("campgrounds/show", { campground });
-  })
-);
+app.get('/campgrounds/:id', catchAsync(async (req, res,) => {
+  const campground = await Campground.findById(req.params.id).populate('reviews'); // for getting all reviews from ids
+  res.render('campgrounds/show', { campground });
+}));
 
 //updating one
 app.get(
@@ -106,6 +118,25 @@ app.delete(
   })
 );
 
+app.post('/campgrounds/:id/reviews', validateReview, catchAsync(async (req, res) => {
+  const campground = await Campground.findById(req.params.id);
+  const review = new Review(req.body.review);
+  campground.reviews.push(review);
+  await review.save();
+  await campground.save();
+  res.redirect(`/campgrounds/${campground._id}`);
+}))
+
+//delete from review collection and also delete from array in campground
+app.delete('/campgrounds/:id/reviews/:reviewId', catchAsync(async (req, res) => {
+  const { id, reviewId } = req.params;
+  await Campground.findByIdAndUpdate(id, { $pull: { reviews: reviewId } });
+  await Review.findByIdAndDelete(reviewId);
+  res.redirect(`/campgrounds/${id}`);
+}))
+
+
+
 //for any method if above routes are not met
 app.all("*", (req, res, next) => {
   //sending to error handler middleware
@@ -115,7 +146,7 @@ app.all("*", (req, res, next) => {
 //middleware
 app.use((err, req, res, next) => {
   const { statusCode = 500 } = err;
-  err.message = "Oh no, something went wrong!";
+  if (!err.message) err.message = "Oh no, something went wrong!";
   res.status(statusCode).render("error", { err });
 });
 
