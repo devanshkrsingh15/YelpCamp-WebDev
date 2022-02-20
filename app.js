@@ -6,10 +6,13 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const ExpressError = require('./utils/ExpressError');
 const methodOverride = require('method-override');
+const passport = require('passport');
+const LocalStrategy = require('passport-local');
+const User = require('./models/user');
 
-
-const campgrounds = require('./routes/campgrounds');
-const reviews = require('./routes/reviews');
+const userRoutes = require('./routes/users');
+const campgroundRoutes = require('./routes/campgrounds');
+const reviewRoutes = require('./routes/reviews');
 
 const app = express();
 
@@ -44,16 +47,30 @@ const sessionConfig = {
 app.use(session(sessionConfig))
 app.use(flash());
 
-//middleware for flashing messages
+//this should come after session middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(new LocalStrategy(User.authenticate())); //use local strategy and use authenticate method (automatically added) 
+
+//how to store user in a session
+passport.serializeUser(User.serializeUser());
+// how to get user in a session
+passport.deserializeUser(User.deserializeUser());
+
+
+//middleware for storing globals 
 app.use((req, res, next) => {
+  res.locals.currentUser = req.user;
   res.locals.success = req.flash('success');
   res.locals.error = req.flash('error');
   next();
 })
 
 //using routers -> cleaning
-app.use('/campgrounds', campgrounds)
-app.use('/campgrounds/:id/reviews', reviews)
+app.use('/', userRoutes);
+app.use('/campgrounds', campgroundRoutes)
+app.use('/campgrounds/:id/reviews', reviewRoutes)
 
 app.get('/', (req, res) => {
     res.render('home')
