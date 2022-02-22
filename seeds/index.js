@@ -17,7 +17,7 @@ mongoose
 
 const seedDB = async () => {
   await Campground.deleteMany({});
-  for (var i = 0; i < 50; i++) {
+  for (var i = 0; i < 200; i++) {
     const random1000 = Math.floor(Math.random() * 1000);
     const price = Math.floor(Math.random() * 1000) + 10;
 
@@ -25,7 +25,10 @@ const seedDB = async () => {
           author : '621239aa7ac8d1d3966588b1',
             location: `${sample(cities).city}, ${sample(cities).admin_name}`,
             title: `${sample(descriptors)} ${sample(places)}`,
-            geometry: { type: 'Point', coordinates: [ 72.84056, 19.05444 ] },
+            geometry: { type: 'Point', coordinates: [
+              sample(cities).lng,
+              sample(cities).lat,
+          ] },
             images: [
               {
                 url: 'https://res.cloudinary.com/djq02hgdf/image/upload/v1645465027/YelCamp/iazvw4nmevlxjpdgwdkn.jpg',
