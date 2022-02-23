@@ -12,16 +12,26 @@ const ExpressError = require('./utils/ExpressError');
 const methodOverride = require('method-override');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
+const mongoSanitize = require('express-mongo-sanitize');
 const User = require('./models/user');
+
 
 const userRoutes = require('./routes/users');
 const campgroundRoutes = require('./routes/campgrounds');
 const reviewRoutes = require('./routes/reviews');
 
 const app = express();
+const MongoDBStore = require("connect-mongo")(session);
+//protection from MONGO INJECTION
+app.use(mongoSanitize({
+  replaceWith: '_'
+}))
+//"mongodb://localhost:27017/yelp-camp" => local
+// const dbURL = process.env.DB_URL //cloud MONGO ATLAS //only when in production environment
+const dbUrl = process.env.DB_URL || 'mongodb://localhost:27017/yelp-camp';
 
 mongoose
-  .connect("mongodb://localhost:27017/yelp-camp")
+  .connect(dbUrl)
   .then(() => {
     console.log("Connection Established with MongoDB");
   })
@@ -38,16 +48,33 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')))
 app.use(methodOverride("_method"));
 
+const secret = process.env.SECRET || 'thisshouldbeabettersecret!';
+
+const store = new MongoDBStore({
+  url: dbUrl,
+  secret,
+  touchAfter: 24 * 60 * 60
+});
+
+store.on("error", function (e) {
+  console.log("SESSION STORE ERROR", e)
+})
+
 const sessionConfig = {
-  secret: 'somesecretjustfordevlopment!',
+  store,
+  name : "session", //cookie name instead of default name
+  secret: secret,
   resave: false,
   saveUninitialized: true,
   cookie: {
       httpOnly: true,
+      //secure : true, // only when deployed, as local host is not https
       expires: Date.now() + 1000 * 60 * 60 * 24 * 7, //in milliseconds 
       maxAge: 1000 * 60 * 60 * 24 * 7
   }
 }
+
+
 app.use(session(sessionConfig))
 app.use(flash());
 
